@@ -106,6 +106,12 @@ node scripts/ainews.mjs trends
 # 最近一次每日信息茧房复核
 node scripts/ainews.mjs review
 
+# 来源采集健康
+node scripts/ainews.mjs source-health
+
+# 组合查看多样性复核与来源健康
+node scripts/ainews.mjs vision
+
 # 生成面向具体受众的多来源证据包
 node scripts/ainews.mjs brief \
   --topic "AI Agent" \
@@ -117,6 +123,8 @@ node scripts/ainews.mjs brief \
 ```
 
 输出均为结构化 JSON，方便 Agent、自动化程序或 MCP 包装器继续处理。
+
+`vision` 只评估 AyaNews 当前收录样本与已配置来源，不代表整个 AI 行业。若旧版网站接口无法给出采集健康，CLI 会明确返回 `unknown`，不会把缺失数据写成正常。
 
 支持格式：`short-video`、`article`、`newsletter`、`xiaohongshu`。
 

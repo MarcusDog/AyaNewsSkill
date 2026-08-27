@@ -1,6 +1,6 @@
 {
   "name": "aya-news-skill",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "private": true,
   "description": "Portable Agent Skill for source-backed AI news research and content production.",
   "type": "module",

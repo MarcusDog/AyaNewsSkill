@@ -198,7 +198,7 @@ export class AiNewsClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await this.fetchImpl(`${this.baseUrl}${endpoint}`, {
-        headers: { Accept: 'application/json', 'User-Agent': 'AyaNewsSkill/2.0' },
+        headers: { Accept: 'application/json', 'User-Agent': 'AyaNewsSkill/2.2' },
         signal: controller.signal
       });
       const text = await response.text();
@@ -283,6 +283,77 @@ export class AiNewsClient {
     return { apiMode: 'legacy-compatible', query: cleanQuery, items: extractArticles(payload).slice(0, limit), meta: payload.pagination || {}, endpoint: legacyEndpoint };
   }
 
+  signalWindow(value = '72h') {
+    const window = String(value || '72h');
+    if (!['24h', '48h', '72h'].includes(window)) {
+      throw new AiNewsApiError('window 必须是 24h、48h 或 72h', { code: 'INVALID_WINDOW' });
+    }
+    return window;
+  }
+
+  async topics(options = {}) {
+    const window = this.signalWindow(options.window);
+    const limit = boundedInteger(options.limit, 20, 1, 100);
+    const endpoint = `/api/signals/v1/topics?${new URLSearchParams({ window, limit: String(limit) })}`;
+    const response = await this.fetchJson(endpoint);
+    const payload = this.assertResponse(response, [endpoint]);
+    return { apiMode: 'signals-v1', items: payload?.data?.items || [], meta: payload.meta || {}, endpoint };
+  }
+
+  async topic(id) {
+    const topicId = String(id || '').trim();
+    if (!topicId) throw new AiNewsApiError('topic 需要 Topic ID', { code: 'MISSING_TOPIC_ID' });
+    const endpoint = `/api/signals/v1/topics/${encodeURIComponent(topicId)}`;
+    const response = await this.fetchJson(endpoint);
+    const payload = this.assertResponse(response, [endpoint]);
+    return { apiMode: 'signals-v1', ...(payload.data || {}), endpoint };
+  }
+
+  async opportunities(options = {}) {
+    const window = this.signalWindow(options.window);
+    const limit = boundedInteger(options.limit, 20, 1, 100);
+    const endpoint = `/api/signals/v1/opportunities?${new URLSearchParams({ window, limit: String(limit) })}`;
+    const response = await this.fetchJson(endpoint);
+    const payload = this.assertResponse(response, [endpoint]);
+    return { apiMode: 'signals-v1', items: payload?.data?.items || [], meta: payload.meta || {}, endpoint };
+  }
+
+  async randomOpportunity(options = {}) {
+    const window = this.signalWindow(options.window);
+    const endpoint = `/api/signals/v1/opportunities/random?${new URLSearchParams({ window })}`;
+    const response = await this.fetchJson(endpoint);
+    const payload = this.assertResponse(response, [endpoint]);
+    return { apiMode: 'signals-v1', ...(payload.data || {}), meta: payload.meta || {}, endpoint };
+  }
+
+  async changes(options = {}) {
+    const since = boundedInteger(options.since, 0, 0, Number.MAX_SAFE_INTEGER);
+    const limit = boundedInteger(options.limit, 100, 1, 500);
+    const endpoint = `/api/signals/v1/changes?${new URLSearchParams({ since: String(since), limit: String(limit) })}`;
+    const response = await this.fetchJson(endpoint);
+    if (response.status === 410 && response.payload?.error === 'cursor_expired') {
+      return {
+        apiMode: 'signals-v1',
+        resyncRequired: true,
+        resync: response.payload.resync,
+        oldestCursor: response.payload.oldest_cursor,
+        latestCursor: response.payload.latest_cursor,
+        items: [],
+        endpoint
+      };
+    }
+    const payload = this.assertResponse(response, [endpoint]);
+    return {
+      apiMode: 'signals-v1',
+      resyncRequired: false,
+      items: payload?.data?.items || [],
+      nextCursor: payload?.meta?.next_cursor ?? since,
+      oldestCursor: payload?.meta?.oldest_cursor ?? null,
+      latestCursor: payload?.meta?.latest_cursor ?? null,
+      endpoint
+    };
+  }
+
   async trends() {
     const v1Endpoint = '/api/content/v1/trends';
     const v1 = await this.fetchJson(v1Endpoint);
@@ -325,6 +396,62 @@ export class AiNewsClient {
       }],
       metrics: snapshot,
       endpoint: fallbackEndpoint
+    };
+  }
+
+  async sourceHealth() {
+    const signalEndpoint = '/api/signals/v1/sources';
+    const signalResponse = await this.fetchJson(signalEndpoint);
+    const signalSources = signalResponse.payload?.data?.items;
+    if (signalResponse.ok && signalResponse.payload?.success !== false && Array.isArray(signalSources)) {
+      const statuses = ['online', 'degraded', 'offline', 'unconfigured', 'disabled', 'pending'];
+      const summary = { total: signalSources.length };
+      statuses.forEach((status) => { summary[status] = signalSources.filter((source) => source.status === status).length; });
+      return {
+        apiMode: 'signals-v1',
+        generatedAt: new Date().toISOString(),
+        summary,
+        sources: signalSources,
+        endpoint: signalEndpoint,
+        notice: 'configured 表示接入条件已满足；status 表示实际最近采集结果，两者不得混用。'
+      };
+    }
+    const v1Endpoint = '/api/content/v1/source-health';
+    const v1 = await this.fetchJson(v1Endpoint);
+    if (v1.ok && v1.payload?.success !== false && v1.payload?.data) {
+      return { apiMode: 'content-v1', ...v1.payload.data, endpoint: v1Endpoint };
+    }
+
+    const legacyEndpoint = '/api/news/sources';
+    const legacy = await this.fetchJson(legacyEndpoint);
+    const payload = this.assertResponse(legacy, [v1Endpoint, legacyEndpoint]);
+    const rawSources = Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.data?.sources) ? payload.data.sources : [];
+    const sources = rawSources.map((source) => ({
+      name: source.name || source.source || '未命名来源',
+      url: source.url || null,
+      category: source.category || null,
+      articleCount: Number(source.articleCount ?? source.count) || 0,
+      status: 'unknown'
+    }));
+    return {
+      apiMode: 'legacy-compatible',
+      generatedAt: new Date().toISOString(),
+      summary: { total: sources.length, unknown: sources.length },
+      sources,
+      endpoint: legacyEndpoint,
+      notice: '兼容接口不提供采集健康字段，因此所有来源状态均标记为 unknown。'
+    };
+  }
+
+  async vision() {
+    const [review, sourceHealth] = await Promise.all([this.review(), this.sourceHealth()]);
+    return {
+      generatedAt: new Date().toISOString(),
+      scope: 'AyaNews 当前收录样本与已配置采集来源；不代表整个 AI 行业。',
+      review,
+      sourceHealth
     };
   }
 
@@ -394,7 +521,7 @@ function parseArguments(argumentsList) {
 }
 
 function helpText() {
-  return `AyaNewsSkill CLI\n\nUsage:\n  node scripts/ainews.mjs doctor\n  node scripts/ainews.mjs latest --limit 10 [--category AI新闻]\n  node scripts/ainews.mjs search --query "AI Agent" --limit 20\n  node scripts/ainews.mjs trends\n  node scripts/ainews.mjs review\n  node scripts/ainews.mjs brief --topic "AI Agent" --audience "小团队" --goal "评估落地" --format article\n\nConfiguration:\n  AI_NEWS_API_BASE_URL=${DEFAULT_BASE_URL}\n  --base-url https://your-domain.example\n`;
+  return `AyaNewsSkill CLI\n\nUsage:\n  node scripts/ainews.mjs doctor\n  node scripts/ainews.mjs topics --window 72h --limit 20\n  node scripts/ainews.mjs topic --id TOPIC_ID\n  node scripts/ainews.mjs opportunities --window 48h\n  node scripts/ainews.mjs random-opportunity --window 72h\n  node scripts/ainews.mjs changes --since 0\n  node scripts/ainews.mjs latest --limit 10 [--category AI新闻]\n  node scripts/ainews.mjs search --query "AI Agent" --limit 20\n  node scripts/ainews.mjs trends\n  node scripts/ainews.mjs review\n  node scripts/ainews.mjs source-health\n  node scripts/ainews.mjs vision\n  node scripts/ainews.mjs brief --topic "AI Agent" --audience "小团队" --goal "评估落地" --format article\n\nConfiguration:\n  AI_NEWS_API_BASE_URL=${DEFAULT_BASE_URL}\n  --base-url https://your-domain.example\n`;
 }
 
 export async function runCli(argumentsList = process.argv.slice(2)) {
@@ -406,8 +533,15 @@ export async function runCli(argumentsList = process.argv.slice(2)) {
   if (command === 'capabilities') return client.capabilities();
   if (command === 'latest') return client.latest({ limit: args.limit, category: args.category });
   if (command === 'search') return client.search(args.query || args.q || args._[1], { limit: args.limit, category: args.category });
+  if (command === 'topics') return client.topics({ window: args.window, limit: args.limit });
+  if (command === 'topic') return client.topic(args.id || args._[1]);
+  if (command === 'opportunities') return client.opportunities({ window: args.window, limit: args.limit });
+  if (command === 'random-opportunity') return client.randomOpportunity({ window: args.window });
+  if (command === 'changes') return client.changes({ since: args.since, limit: args.limit });
   if (command === 'trends') return client.trends();
   if (command === 'review') return client.review();
+  if (command === 'source-health' || command === 'sources') return client.sourceHealth();
+  if (command === 'vision') return client.vision();
   if (command === 'brief') return client.brief({
     topic: args.topic,
     audience: args.audience,

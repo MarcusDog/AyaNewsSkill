@@ -1,4 +1,4 @@
 interface:
   display_name: "AyaNewsSkill"
-  short_description: "连接 AI News 的多源证据与反信息茧房内容助手"
-  default_prompt: "Use $aya-news-skill to research a current AI topic and answer in Chinese with diverse sources and inline citations."
+  short_description: "连接 AyaNews 热点、创作者机会与多源证据的内容助手"
+  default_prompt: "Use $aya-news-skill to inspect current 24/48/72-hour Topics and the AyaNews vision snapshot, open original evidence, and answer in Chinese with inline citations and explicit evidence gaps."

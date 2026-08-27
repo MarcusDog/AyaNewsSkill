@@ -49,6 +49,17 @@ State the problem in one sentence. Ask only if the missing choice would material
 
 ### 2. Retrieve a diverse evidence pack
 
+For current hotspots or creator ideas, begin with the real Topic pipeline rather than the legacy keyword trend endpoint:
+
+```bash
+node "<skill-directory>/scripts/ainews.mjs" topics --window 72h --limit 20
+node "<skill-directory>/scripts/ainews.mjs" topic --id "TOPIC_ID"
+node "<skill-directory>/scripts/ainews.mjs" opportunities --window 48h
+node "<skill-directory>/scripts/ainews.mjs" random-opportunity --window 72h
+```
+
+Use `24h` for breaking signals, `48h` for rising discussions, and `72h` for slower project/community evidence. A Topic score ranks AyaNews's collected sample; it does not prove whole-network popularity. Open Topic detail and cite its original `signals[].url` values before making factual claims.
+
 Run the bundled client with the fields above:
 
 ```bash
@@ -88,10 +99,18 @@ If a condition cannot be met, disclose that gap near the conclusion.
 When the user asks about the site's overall filter bubble or source health, read the latest scheduled model review before drafting:
 
 ```bash
-node "<skill-directory>/scripts/ainews.mjs" review
+node "<skill-directory>/scripts/ainews.mjs" vision
 ```
 
-Treat this review as a diagnosis of the site's collected sample, not a measurement of the whole AI industry.
+The vision snapshot combines the latest model review with the public source-health registry. Use `review` when only the diversity audit is needed, or `source-health` when only collection status is needed. Treat every result as a diagnosis of the site's collected sample and configured sources, not a measurement of the whole AI industry. If the client reports `unknown`, do not rewrite it as healthy or unhealthy.
+
+AyaNews now exposes deterministic event Topics, creator opportunities, Signal source health and a REST What Changed cursor. To follow changes:
+
+```bash
+node "<skill-directory>/scripts/ainews.mjs" changes --since 0
+```
+
+Save the returned `nextCursor`. If `resyncRequired` is true after HTTP 410, discard the expired cursor and reload `topics`. AyaNews does not expose MCP, A2A, signed Webhooks, or a push subscription protocol; never invent those endpoints.
 
 ### 4. Separate claim layers
 
