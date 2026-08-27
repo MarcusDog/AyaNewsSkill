@@ -13,9 +13,9 @@ Run:
 ```bash
 node "<skill-directory>/scripts/ainews.mjs" doctor
 node "<skill-directory>/scripts/ainews.mjs" topics --window 72h --limit 20
-node "<skill-directory>/scripts/ainews.mjs" topic --id "TOPIC_ID"
-node "<skill-directory>/scripts/ainews.mjs" opportunities --window 48h
-node "<skill-directory>/scripts/ainews.mjs" random-opportunity --window 72h
+node "<skill-directory>/scripts/ainews.mjs" topic --id "TOPIC_ID" --window 48h
+node "<skill-directory>/scripts/ainews.mjs" opportunities --window 48h --profile tool-review
+node "<skill-directory>/scripts/ainews.mjs" random-opportunity --window 72h --profile general --exclude "PREVIOUS_TOPIC_ID"
 node "<skill-directory>/scripts/ainews.mjs" changes --since 0
 node "<skill-directory>/scripts/ainews.mjs" latest --limit 10
 node "<skill-directory>/scripts/ainews.mjs" search --query "AI Agent"
@@ -43,16 +43,25 @@ Returns persisted event clusters ordered by explainable `trendScore`, latest evi
 
 ### Topic detail
 
-`GET /api/signals/v1/topics/{id}`
+`GET /api/signals/v1/topics/{id}?window=24h|48h|72h`
 
 Returns the canonical Topic and its original evidence links in `signals[].url`. Old alias IDs resolve to `canonical_topic_id` without changing the evidence identity.
 
 ### Creator opportunities
 
-- `GET /api/signals/v1/opportunities?window=48h`
-- `GET /api/signals/v1/opportunities/random?window=72h`
+- `GET /api/signals/v1/opportunities?window=48h&profile=tool-review&limit=20`
+- `GET /api/signals/v1/opportunities/random?window=72h&profile=general&exclude={previousTopicId}`
 
-`creator_score` uses the versioned `opportunity-v1` formula. It ranks creator usefulness inside the collected evidence set; it is not a promise that a post will perform well.
+Profiles are `general`, `short-video`, `tool-review`, `news-commentary`, and `deep-dive`. `exclude` prevents an immediate repeat. `creatorScore` uses the versioned `opportunity-v2` formula. It ranks creator usefulness inside the collected evidence set; it is not a promise that a post will perform well.
+
+## News aggregation compatibility routes
+
+- `GET /api/news/feed?page=1&limit=20`: preserved historical News rows and total.
+- `GET /api/news/domestic?window=48h`: Topics containing domestic Signal evidence.
+- `GET /api/news/hot-rank?window=24h`: window-specific real trend ranking.
+- `GET /api/news/discover?window=72h&profile=short-video&limit=20`: profile-specific creator opportunities.
+- `GET /api/news/dashboard?window=72h`: News totals, Topics, and source health.
+- `GET /api/news/by-source`: legacy News source counts plus Signal source status.
 
 ### Signal source health
 
@@ -93,11 +102,12 @@ Returns topics comparing the most recent seven days with the preceding seven day
 
 ## Content brief
 
-`GET /api/content/v1/brief?topic=Agent&audience=小型电商商家&goal=降低客服成本&format=short-video&days=14&limit=6`
+`GET /api/content/v1/brief?topic=Agent&topicId={id}&audience=小型电商商家&goal=降低客服成本&format=short-video&days=14&limit=6`
 
 Parameters:
 
 - `topic`: topic terms
+- `topicId`: optional stable Topic ID; when supplied, use that Topic's Signal evidence
 - `audience`: intended beneficiary
 - `goal`: practical outcome
 - `format`: `short-video`, `article`, `newsletter`, or `xiaohongshu`
@@ -122,6 +132,8 @@ Run `vision` to combine this registry with the latest `/api/analytics/diversity-
 - RSS 2.0: `/rss.xml`
 - Topic JSON Feed 1.1: `/topics/feed.json`
 - Topic RSS 2.0: `/topics/rss.xml`
+
+Human workspaces are `/topics`, `/research`, and `/skills`; they are pages, not machine endpoints.
 
 MCP, A2A and signed Webhooks are not live. Event Topics and What Changed are available through the REST endpoints above. Check `/api/content/v1/capabilities` rather than guessing future protocols.
 

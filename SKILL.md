@@ -53,24 +53,27 @@ For current hotspots or creator ideas, begin with the real Topic pipeline rather
 
 ```bash
 node "<skill-directory>/scripts/ainews.mjs" topics --window 72h --limit 20
-node "<skill-directory>/scripts/ainews.mjs" topic --id "TOPIC_ID"
-node "<skill-directory>/scripts/ainews.mjs" opportunities --window 48h
-node "<skill-directory>/scripts/ainews.mjs" random-opportunity --window 72h
+node "<skill-directory>/scripts/ainews.mjs" topic --id "TOPIC_ID" --window 48h
+node "<skill-directory>/scripts/ainews.mjs" opportunities --window 48h --profile tool-review
+node "<skill-directory>/scripts/ainews.mjs" random-opportunity --window 72h --profile general --exclude "PREVIOUS_TOPIC_ID"
 ```
 
 Use `24h` for breaking signals, `48h` for rising discussions, and `72h` for slower project/community evidence. A Topic score ranks AyaNews's collected sample; it does not prove whole-network popularity. Open Topic detail and cite its original `signals[].url` values before making factual claims.
+
+Select one creator profile: `general`, `short-video`, `tool-review`, `news-commentary`, or `deep-dive`. Use `exclude` with the current Topic ID when rerolling. Do not silently switch profiles merely to obtain a higher score; a tool-review request must not be filled with a paper-only topic.
 
 Run the bundled client with the fields above:
 
 ```bash
 node "<skill-directory>/scripts/ainews.mjs" brief \
   --topic "AI Agent" \
+  --topic-id "TOPIC_ID" \
   --audience "小型团队" \
   --goal "判断是否值得试用" \
   --format article
 ```
 
-The client calls `GET /api/content/v1/brief` when available. If the independently deployed website has not enabled v1 yet, it searches the current website API and deterministically constructs the same citation ledger locally.
+The client calls `GET /api/content/v1/brief` when available. When a Topic ID is known, pass `--topic-id` so the brief uses that Topic's current Signal evidence rather than a new fuzzy keyword search. If the independently deployed website has not enabled v1 yet, it searches the current website API and deterministically constructs the same citation ledger locally.
 
 If the brief returns `insufficient_evidence`:
 

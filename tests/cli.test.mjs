@@ -43,9 +43,11 @@ const articles = [
 
 let server;
 let baseUrl;
+const requestUrls = [];
 
 before(async () => {
   server = http.createServer((request, response) => {
+    requestUrls.push(request.url);
     response.setHeader('content-type', 'application/json');
     if (request.url.startsWith('/api/signals/v1/topics/topic-1')) {
       response.end(JSON.stringify({ success: true, data: { id: 'topic-1', canonical_topic_id: 'topic-1', title: 'Acme Tool', signals: [{ url: 'https://github.com/acme/tool' }] } }));
@@ -144,6 +146,17 @@ test('client reads topics, topic evidence, creator opportunities and change curs
   assert.equal(changes.nextCursor, 4);
   assert.equal(expired.resyncRequired, true);
   assert.equal(expired.latestCursor, 9);
+});
+
+test('client forwards creator profile, random exclusion and Topic id research parameters', async () => {
+  const client = new AiNewsClient({ baseUrl });
+  await client.opportunities({ window: '48h', profile: 'tool-review' });
+  await client.randomOpportunity({ window: '72h', profile: 'short-video', exclude: 'topic-1' });
+  await client.brief({ topic: 'Qwen', topicId: 'topic-1', format: 'article' });
+
+  assert(requestUrls.some((url) => url.includes('/api/signals/v1/opportunities?') && url.includes('profile=tool-review')));
+  assert(requestUrls.some((url) => url.includes('/api/signals/v1/opportunities/random?') && url.includes('profile=short-video') && url.includes('exclude=topic-1')));
+  assert(requestUrls.some((url) => url.includes('/api/content/v1/brief?') && url.includes('topicId=topic-1')));
 });
 
 test('source health prefers the real Signal registry when it is available', async () => {

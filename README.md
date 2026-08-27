@@ -10,6 +10,8 @@
 ## 功能效果
 
 - 自动读取 AI News 最新资讯、搜索结果和趋势。
+- 读取 24/48/72 小时真实 Topic，并按综合、短视频、工具实测、热点快评、深度拆解五类创作者画像选题。
+- 随机换题可排除上一题；研究证据包可直接绑定稳定 Topic ID。
 - 可读取网站每天生成的信息茧房复核，了解地区、发布者和证据类型缺口。
 - 默认绑定 `https://ainews.xiaotianaya.com`，无需 API Key。
 - 自动探测 Content API v1；新版接口尚未部署时，无感回退到网站当前兼容接口。
@@ -100,6 +102,10 @@ node scripts/ainews.mjs latest --limit 10
 # 搜索主题
 node scripts/ainews.mjs search --query "AI Agent" --limit 20
 
+# 创作者机会与不重复随机选题
+node scripts/ainews.mjs opportunities --window 48h --profile tool-review
+node scripts/ainews.mjs random-opportunity --window 72h --profile short-video --exclude PREVIOUS_TOPIC_ID
+
 # 等长窗口趋势
 node scripts/ainews.mjs trends
 
@@ -115,6 +121,7 @@ node scripts/ainews.mjs vision
 # 生成面向具体受众的多来源证据包
 node scripts/ainews.mjs brief \
   --topic "AI Agent" \
+  --topic-id "TOPIC_ID" \
   --audience "准备引入 AI 的小型团队" \
   --goal "判断是否值得试用并控制风险" \
   --format article \

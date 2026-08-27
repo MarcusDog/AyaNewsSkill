@@ -4,6 +4,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_BASE_URL = 'https://ainews.xiaotianaya.com';
+const CREATOR_PROFILES = ['general', 'short-video', 'tool-review', 'news-commentary', 'deep-dive'];
 
 const EVIDENCE_PRIORITY = ['official', 'research', 'media', 'engineering'];
 const FORMAT_SECTIONS = {
@@ -198,7 +199,7 @@ export class AiNewsClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await this.fetchImpl(`${this.baseUrl}${endpoint}`, {
-        headers: { Accept: 'application/json', 'User-Agent': 'AyaNewsSkill/2.2' },
+        headers: { Accept: 'application/json', 'User-Agent': 'AyaNewsSkill/2.3' },
         signal: controller.signal
       });
       const text = await response.text();
@@ -291,6 +292,14 @@ export class AiNewsClient {
     return window;
   }
 
+  creatorProfile(value = 'general') {
+    const profile = String(value || 'general');
+    if (!CREATOR_PROFILES.includes(profile)) {
+      throw new AiNewsApiError(`profile 必须是 ${CREATOR_PROFILES.join('、')}`, { code: 'INVALID_PROFILE' });
+    }
+    return profile;
+  }
+
   async topics(options = {}) {
     const window = this.signalWindow(options.window);
     const limit = boundedInteger(options.limit, 20, 1, 100);
@@ -300,10 +309,11 @@ export class AiNewsClient {
     return { apiMode: 'signals-v1', items: payload?.data?.items || [], meta: payload.meta || {}, endpoint };
   }
 
-  async topic(id) {
+  async topic(id, options = {}) {
     const topicId = String(id || '').trim();
     if (!topicId) throw new AiNewsApiError('topic 需要 Topic ID', { code: 'MISSING_TOPIC_ID' });
-    const endpoint = `/api/signals/v1/topics/${encodeURIComponent(topicId)}`;
+    const suffix = options.window ? `?${new URLSearchParams({ window: this.signalWindow(options.window) })}` : '';
+    const endpoint = `/api/signals/v1/topics/${encodeURIComponent(topicId)}${suffix}`;
     const response = await this.fetchJson(endpoint);
     const payload = this.assertResponse(response, [endpoint]);
     return { apiMode: 'signals-v1', ...(payload.data || {}), endpoint };
@@ -312,7 +322,8 @@ export class AiNewsClient {
   async opportunities(options = {}) {
     const window = this.signalWindow(options.window);
     const limit = boundedInteger(options.limit, 20, 1, 100);
-    const endpoint = `/api/signals/v1/opportunities?${new URLSearchParams({ window, limit: String(limit) })}`;
+    const profile = this.creatorProfile(options.profile);
+    const endpoint = `/api/signals/v1/opportunities?${new URLSearchParams({ window, limit: String(limit), profile })}`;
     const response = await this.fetchJson(endpoint);
     const payload = this.assertResponse(response, [endpoint]);
     return { apiMode: 'signals-v1', items: payload?.data?.items || [], meta: payload.meta || {}, endpoint };
@@ -320,7 +331,10 @@ export class AiNewsClient {
 
   async randomOpportunity(options = {}) {
     const window = this.signalWindow(options.window);
-    const endpoint = `/api/signals/v1/opportunities/random?${new URLSearchParams({ window })}`;
+    const profile = this.creatorProfile(options.profile);
+    const params = new URLSearchParams({ window, profile });
+    if (options.exclude) params.set('exclude', String(options.exclude));
+    const endpoint = `/api/signals/v1/opportunities/random?${params}`;
     const response = await this.fetchJson(endpoint);
     const payload = this.assertResponse(response, [endpoint]);
     return { apiMode: 'signals-v1', ...(payload.data || {}), meta: payload.meta || {}, endpoint };
@@ -464,6 +478,7 @@ export class AiNewsClient {
       days: String(boundedInteger(options.days, 14, 1, 30)),
       limit: String(boundedInteger(options.limit, 6, 3, 8))
     });
+    if (options.topicId) params.set('topicId', String(options.topicId));
     const v1Endpoint = `/api/content/v1/brief?${params}`;
     const v1 = await this.fetchJson(v1Endpoint);
     if ((v1.ok || v1.status === 422) && v1.payload?.data) {
@@ -521,7 +536,7 @@ function parseArguments(argumentsList) {
 }
 
 function helpText() {
-  return `AyaNewsSkill CLI\n\nUsage:\n  node scripts/ainews.mjs doctor\n  node scripts/ainews.mjs topics --window 72h --limit 20\n  node scripts/ainews.mjs topic --id TOPIC_ID\n  node scripts/ainews.mjs opportunities --window 48h\n  node scripts/ainews.mjs random-opportunity --window 72h\n  node scripts/ainews.mjs changes --since 0\n  node scripts/ainews.mjs latest --limit 10 [--category AI新闻]\n  node scripts/ainews.mjs search --query "AI Agent" --limit 20\n  node scripts/ainews.mjs trends\n  node scripts/ainews.mjs review\n  node scripts/ainews.mjs source-health\n  node scripts/ainews.mjs vision\n  node scripts/ainews.mjs brief --topic "AI Agent" --audience "小团队" --goal "评估落地" --format article\n\nConfiguration:\n  AI_NEWS_API_BASE_URL=${DEFAULT_BASE_URL}\n  --base-url https://your-domain.example\n`;
+  return `AyaNewsSkill CLI\n\nUsage:\n  node scripts/ainews.mjs doctor\n  node scripts/ainews.mjs topics --window 72h --limit 20\n  node scripts/ainews.mjs topic --id TOPIC_ID --window 48h\n  node scripts/ainews.mjs opportunities --window 48h --profile tool-review\n  node scripts/ainews.mjs random-opportunity --window 72h --profile general --exclude PREVIOUS_TOPIC_ID\n  node scripts/ainews.mjs changes --since 0\n  node scripts/ainews.mjs latest --limit 10 [--category AI新闻]\n  node scripts/ainews.mjs search --query "AI Agent" --limit 20\n  node scripts/ainews.mjs trends\n  node scripts/ainews.mjs review\n  node scripts/ainews.mjs source-health\n  node scripts/ainews.mjs vision\n  node scripts/ainews.mjs brief --topic "AI Agent" --topic-id TOPIC_ID --audience "小团队" --goal "评估落地" --format article\n\nProfiles:\n  general | short-video | tool-review | news-commentary | deep-dive\n\nConfiguration:\n  AI_NEWS_API_BASE_URL=${DEFAULT_BASE_URL}\n  --base-url https://your-domain.example\n`;
 }
 
 export async function runCli(argumentsList = process.argv.slice(2)) {
@@ -534,9 +549,9 @@ export async function runCli(argumentsList = process.argv.slice(2)) {
   if (command === 'latest') return client.latest({ limit: args.limit, category: args.category });
   if (command === 'search') return client.search(args.query || args.q || args._[1], { limit: args.limit, category: args.category });
   if (command === 'topics') return client.topics({ window: args.window, limit: args.limit });
-  if (command === 'topic') return client.topic(args.id || args._[1]);
-  if (command === 'opportunities') return client.opportunities({ window: args.window, limit: args.limit });
-  if (command === 'random-opportunity') return client.randomOpportunity({ window: args.window });
+  if (command === 'topic') return client.topic(args.id || args._[1], { window: args.window });
+  if (command === 'opportunities') return client.opportunities({ window: args.window, limit: args.limit, profile: args.profile });
+  if (command === 'random-opportunity') return client.randomOpportunity({ window: args.window, profile: args.profile, exclude: args.exclude });
   if (command === 'changes') return client.changes({ since: args.since, limit: args.limit });
   if (command === 'trends') return client.trends();
   if (command === 'review') return client.review();
@@ -549,7 +564,8 @@ export async function runCli(argumentsList = process.argv.slice(2)) {
     format: args.format,
     days: args.days,
     limit: args.limit,
-    category: args.category
+    category: args.category,
+    topicId: args['topic-id']
   });
   throw new AiNewsApiError(`未知命令：${command}`, { code: 'UNKNOWN_COMMAND' });
 }

@@ -33,7 +33,7 @@ Do not chase numerical balance when a topic legitimately has only one authoritat
 ## Topic and score boundaries
 
 - `trend-v1` is an explainable ranking over AyaNews's collected 24/48/72-hour evidence. It is not a measurement of the entire internet.
-- `opportunity-v1` estimates creator usefulness from the Topic evidence and applies a penalty to one-source or one-platform Topics.
+- `opportunity-v2` estimates creator usefulness for one selected creator profile and applies a penalty to one-source or one-platform Topics. It also excludes paper-only ideas from non-deep profiles and rejects generic non-AI discussions.
 - Never cite a score as proof that an event is objectively popular. Cite the underlying `signals[].url` links for factual claims.
 - Preserve missing metrics as unknown; never rewrite `null` replies, views, stars or shares as zero observed activity.
 - Distinguish source configuration from collection health. An unconfigured L2/L3 source is unavailable evidence, not a failed or silent platform.
