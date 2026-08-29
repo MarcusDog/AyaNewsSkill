@@ -20,6 +20,9 @@ test('installer copies only runtime skill files and protects an existing install
     const cliText = await readFile(path.join(result.installDir, 'scripts', 'ainews.mjs'), 'utf8');
 
     assert.match(skillText, /aya-news-skill/);
+    assert.match(skillText, /creator-hotness-v1/);
+    assert.match(skillText, /partial.*blocked.*unconfigured/s);
+    assert.match(skillText, /signed Webhook|签名 Webhook/);
     assert.match(cliText, /AiNewsClient/);
     const { stdout } = await execFileAsync(process.execPath, [path.join(result.installDir, 'scripts', 'ainews.mjs'), '--help']);
     assert.match(stdout, /AyaNewsSkill CLI/);
