@@ -1,8 +1,8 @@
 {
   "name": "aya-news-skill",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
-  "description": "Portable Agent Skill for source-backed AI news research and content production.",
+  "description": "Portable Agent Skill for source-backed news, creator intelligence research and content production.",
   "type": "module",
   "engines": {
     "node": ">=18"

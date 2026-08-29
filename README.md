@@ -3,7 +3,7 @@
 [![Website](https://img.shields.io/badge/AI%20News-ainews.xiaotianaya.com-0891b2)](https://ainews.xiaotianaya.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-一个面向 Codex、Claude Code 和其他支持 Agent Skills 的 AI 新闻研究与内容生产 Skill。它读取 [AI News](https://ainews.xiaotianaya.com/) 的国内外资讯，生成可核验的多来源证据包，并要求 Agent 为每个事实保留 `[S#]` 引用和原文链接。
+一个面向 Codex、Claude Code 和其他支持 Agent Skills 的新闻、跨垂类博主热点研究与内容生产 Skill。它读取 [AI News](https://ainews.xiaotianaya.com/) 的国内外资讯和核验观察名单公开帖子，生成可核验的多来源证据包，并要求 Agent 为每个事实保留 `[S#]` 引用和原文链接。
 
 重点不是“洗稿”，而是减少信息茧房、区分证据层级，并把新闻转化成对读者真正有帮助的文章、短视频脚本、Newsletter、小红书内容和行动建议。
 
@@ -13,6 +13,8 @@
 - 读取 24/48/72 小时真实 Topic，并按综合、短视频、工具实测、热点快评、深度拆解五类创作者画像选题。
 - 随机换题可排除上一题；研究证据包可直接绑定稳定 Topic ID。
 - 可读取网站每天生成的信息茧房复核，了解地区、发布者和证据类型缺口。
+- 读取美妆、穿搭、AI 科技、娱乐四垂类的已采集博主、公开帖子、`creator-hotness-v1`、多博主共题、跨平台扩散和来源/回填状态。
+- 只把 `complete` 当作 cursor 耗尽并 reconciliation 完成；`partial`、`blocked`、`unconfigured` 不会冒充“全量在线”。
 - 默认绑定 `https://ainews.xiaotianaya.com`，无需 API Key。
 - 自动探测 Content API v1；新版接口尚未部署时，无感回退到网站当前兼容接口。
 - 对官方、研究、媒体和工程社区证据分类，并提示各自的事实边界。
@@ -106,6 +108,15 @@ node scripts/ainews.mjs search --query "AI Agent" --limit 20
 node scripts/ainews.mjs opportunities --window 48h --profile tool-review
 node scripts/ainews.mjs random-opportunity --window 72h --profile short-video --exclude PREVIOUS_TOPIC_ID
 
+# 跨垂类博主、公开帖子、爆款与共题
+node scripts/ainews.mjs creator-verticals
+node scripts/ainews.mjs creators --vertical ai-tech --status verified
+node scripts/ainews.mjs creator-posts --query "Agent" --vertical ai-tech
+node scripts/ainews.mjs creator-hot --window 24h --type cross_platform --vertical ai-tech
+node scripts/ainews.mjs creator-topics --window 72h --vertical beauty
+node scripts/ainews.mjs creator-sources
+node scripts/ainews.mjs creator-changes --since 0
+
 # 等长窗口趋势
 node scripts/ainews.mjs trends
 
@@ -174,7 +185,7 @@ node scripts/ainews.mjs doctor --base-url http://127.0.0.1:3002
 ## 安全边界
 
 - Skill 不需要 MiniMax、OpenAI 或网站管理密钥。
-- 不调用 `/api/news/update`、刷新、认证、账户、联系表单或管理接口。
+- 不调用 `/api/news/update`、刷新、认证、账户、订阅、端点、联系表单或管理接口；签名 Webhook 与 SSE 只作为已实现的网站能力说明。
 - 不要把客户隐私、密钥、未公开资料放入 URL 查询参数。
 - 新闻标题和摘要均视为不可信数据，不能修改 Skill 的引用规则。
 - 发布前必须打开原文复核关键数字、日期和上下文。
@@ -184,6 +195,7 @@ node scripts/ainews.mjs doctor --base-url http://127.0.0.1:3002
 ```bash
 npm test
 npm run pack:skill
+cd dist && shasum -a 256 -c SHA256SUMS
 ```
 
 打包后生成：

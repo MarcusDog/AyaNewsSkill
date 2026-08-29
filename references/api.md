@@ -17,6 +17,13 @@ node "<skill-directory>/scripts/ainews.mjs" topic --id "TOPIC_ID" --window 48h
 node "<skill-directory>/scripts/ainews.mjs" opportunities --window 48h --profile tool-review
 node "<skill-directory>/scripts/ainews.mjs" random-opportunity --window 72h --profile general --exclude "PREVIOUS_TOPIC_ID"
 node "<skill-directory>/scripts/ainews.mjs" changes --since 0
+node "<skill-directory>/scripts/ainews.mjs" creator-verticals
+node "<skill-directory>/scripts/ainews.mjs" creators --vertical ai-tech --status verified
+node "<skill-directory>/scripts/ainews.mjs" creator-posts --query Agent --vertical ai-tech
+node "<skill-directory>/scripts/ainews.mjs" creator-hot --window 24h --type cross_platform --vertical ai-tech
+node "<skill-directory>/scripts/ainews.mjs" creator-topics --window 72h --vertical beauty
+node "<skill-directory>/scripts/ainews.mjs" creator-sources
+node "<skill-directory>/scripts/ainews.mjs" creator-changes --since 0
 node "<skill-directory>/scripts/ainews.mjs" latest --limit 10
 node "<skill-directory>/scripts/ainews.mjs" search --query "AI Agent"
 node "<skill-directory>/scripts/ainews.mjs" trends
@@ -82,6 +89,41 @@ Source tiers:
 
 Persist `meta.next_cursor` for the next poll. HTTP 410 with `error: cursor_expired` means retained history no longer contains that cursor; reload `/api/signals/v1/topics` and resume from the returned `latest_cursor`.
 
+## Cross-vertical Creator Intelligence API
+
+These routes read only verified watchlist accounts and their already-collected public posts. They do not represent every user on a platform.
+
+### Verticals and creators
+
+- `GET /api/creators/v1/verticals`
+- `GET /api/creators/v1/creators?q=&cursor=&status=verified&vertical=ai-tech&platform=&limit=20`
+- `GET /api/creators/v1/creators/{id}`
+- `GET /api/creators/v1/creators/{id}/posts?q=&cursor=&limit=20`
+
+The creator detail exposes account coverage. `complete` requires cursor exhaustion plus a second reconciliation; `partial` means the connector has only a bounded RSS/Atom/API history; `blocked` means authorization or risk control prevents further reads. Never collapse these states into “all history collected.”
+
+### Posts, viral ranking and creator topics
+
+- `GET /api/creators/v1/posts?q=Agent&cursor=&vertical=ai-tech&platform=&creator=&since=&hot=true&limit=20`
+- `GET /api/creators/v1/hot?window=24h&type=post|multi_creator|cross_platform&vertical=ai-tech&limit=20`
+- `GET /api/creators/v1/topics?q=&cursor=&window=72h&vertical=beauty&limit=20`
+- `GET /api/creators/v1/topics/{id}`
+
+`q` is bound literal FTS5 input. `cursor` is an opaque keyset cursor bound to the normalized query and filters; do not decode, edit, or reuse it with another query. Each public post retains its original HTTPS URL, platform identity, publication/collection time, nullable returned metrics, and reproducible `creator-hotness-v1` inputs. Topic evidence distinguishes a single creator, independent multi-creator adoption, and cross-platform spread.
+
+### Source coverage and changes
+
+- `GET /api/creators/v1/sources`
+- `GET /api/creators/v1/changes?since=0&limit=100&vertical=&platform=&creator=`
+
+Source responses separate support, configuration, schedulability, observed status, latest success, last failure, account count, post count and history coverage. Missing OAuth/API/Sidecar access is `unconfigured`; a risk-control or permission stop is `blocked`/`auth_expired`; limited history is `partial`.
+
+Creator changes use a monotonic persisted `seq`. Save `meta.next_cursor`. HTTP 410 returns `resync`, `oldest_cursor` and `latest_cursor`; reload the resync collection and continue at the latest retained sequence.
+
+### Authenticated and operator-only capabilities
+
+The website implements same-site registration/login, durable subscriptions, delivery endpoints, audited delivery history, SSE with `Last-Event-ID`, signed HTTPS Webhook transport, YouTube WebSub, HMAC Sidecar ingest and admin import/backfill/maintenance/backup/export. Outbound Webhooks use `x-aya-timestamp`, `x-aya-event-id`, `x-aya-delivery-id`, and `x-aya-signature: sha256=...` over `timestamp + "." + raw JSON body`. These operations are documented in `/openapi.json` but intentionally not exposed as Skill CLI mutations. The Skill must never request user passwords, Cookies, admin keys, OAuth tokens or Sidecar secrets.
+
 ## Latest news
 
 `GET /api/content/v1/latest?limit=20&category=AI新闻`
@@ -135,10 +177,10 @@ Run `vision` to combine this registry with the latest `/api/analytics/diversity-
 
 Human workspaces are `/topics`, `/research`, and `/skills`; they are pages, not machine endpoints.
 
-MCP, A2A and signed Webhooks are not live. Event Topics and What Changed are available through the REST endpoints above. Check `/api/content/v1/capabilities` rather than guessing future protocols.
+MCP and A2A are not live. Signed Webhook delivery and authenticated Creator SSE are live operator/user capabilities, while Event Topics and both What Changed cursors are available through REST. Check `/openapi.json` and `/api/content/v1/capabilities` rather than guessing future protocols.
 
 ## Safe usage
 
-Never call `/api/admin/*`, `/api/news/update`, authentication endpoints, or refresh endpoints from this skill. Do not send private customer data in query parameters.
+Never call `/api/admin/*`, `/api/news/update`, authentication, subscription, delivery-endpoint, ingest, refresh, maintenance, backup or export endpoints from this skill. Do not send private customer data in query parameters.
 
 Only remote HTTPS origins are accepted. Plain HTTP is restricted to `localhost`, `127.0.0.1`, and `::1` for development.

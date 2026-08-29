@@ -49,6 +49,51 @@ before(async () => {
   server = http.createServer((request, response) => {
     requestUrls.push(request.url);
     response.setHeader('content-type', 'application/json');
+    if (request.url.startsWith('/api/creators/v1/verticals')) {
+      response.end(JSON.stringify({ success: true, data: { items: [{ id: 'ai-tech', name: 'AI 科技', creatorCount: 1, postCount: 3 }] } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/creators/creator-a/posts')) {
+      response.end(JSON.stringify({ success: true, data: { items: [{ id: 'post-a', url: 'https://example.com/post-a', title: 'Agent 实测' }], next_cursor: 'opaque-2' } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/creators/creator-a')) {
+      response.end(JSON.stringify({ success: true, data: { id: 'creator-a', displayName: 'Alice', accounts: [{ backfill: { state: 'partial' } }] } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/creators?')) {
+      response.end(JSON.stringify({ success: true, data: { items: [{ id: 'creator-a', displayName: 'Alice' }], next_cursor: null } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/posts?')) {
+      response.end(JSON.stringify({ success: true, data: { items: [{ id: 'post-a', url: 'https://example.com/post-a', title: 'Agent 实测' }], next_cursor: 'opaque-2' } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/hot?')) {
+      response.end(JSON.stringify({ success: true, data: { items: [{ id: 'post-a', hotness: { formulaVersion: 'creator-hotness-v1', score: 86 } }] } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/topics/topic-c')) {
+      response.end(JSON.stringify({ success: true, data: { id: 'topic-c', title: '三位博主共题', evidence: [{ url: 'https://example.com/post-a' }] } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/topics?')) {
+      response.end(JSON.stringify({ success: true, data: { items: [{ id: 'topic-c', title: '三位博主共题' }], next_cursor: null } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/sources')) {
+      response.end(JSON.stringify({ success: true, data: { items: [{ id: 'x-user-timeline', status: 'unconfigured', configured: false }] } }));
+      return;
+    }
+    if (request.url.startsWith('/api/creators/v1/changes')) {
+      if (request.url.includes('since=1')) {
+        response.statusCode = 410;
+        response.end(JSON.stringify({ success: false, error: 'cursor_expired', resync: '/api/creators/v1/posts', oldest_cursor: 7, latest_cursor: 9 }));
+      } else {
+        response.end(JSON.stringify({ success: true, data: { items: [{ seq: 4, eventType: 'post.hot' }] }, meta: { next_cursor: 4 } }));
+      }
+      return;
+    }
     if (request.url.startsWith('/api/signals/v1/topics/topic-1')) {
       response.end(JSON.stringify({ success: true, data: { id: 'topic-1', canonical_topic_id: 'topic-1', title: 'Acme Tool', signals: [{ url: 'https://github.com/acme/tool' }] } }));
       return;
@@ -143,6 +188,34 @@ test('client reads topics, topic evidence, creator opportunities and change curs
   assert.equal(topics.items[0].id, 'topic-1');
   assert.equal(detail.signals[0].url, 'https://github.com/acme/tool');
   assert.equal(opportunities.items[0].creator_score, 68);
+  assert.equal(changes.nextCursor, 4);
+  assert.equal(expired.resyncRequired, true);
+  assert.equal(expired.latestCursor, 9);
+});
+
+test('client reads cross-vertical creators, posts, hot topics, source coverage and monotonic changes', async () => {
+  const client = new AiNewsClient({ baseUrl });
+  const verticals = await client.creatorVerticals();
+  const creators = await client.creators({ vertical: 'ai-tech', status: 'verified' });
+  const creator = await client.creator('creator-a');
+  const posts = await client.creatorPosts({ q: 'Agent', vertical: 'ai-tech', cursor: 'opaque-1' });
+  const creatorPosts = await client.creatorPosts({ creator: 'creator-a' });
+  const hot = await client.creatorHot({ window: '24h', type: 'cross_platform', vertical: 'ai-tech' });
+  const topics = await client.creatorTopics({ window: '72h', vertical: 'ai-tech' });
+  const topic = await client.creatorTopic('topic-c');
+  const sources = await client.creatorSources();
+  const changes = await client.creatorChanges({ since: 0 });
+  const expired = await client.creatorChanges({ since: 1 });
+
+  assert.equal(verticals.items[0].id, 'ai-tech');
+  assert.equal(creators.items[0].id, 'creator-a');
+  assert.equal(creator.accounts[0].backfill.state, 'partial');
+  assert.equal(posts.nextCursor, 'opaque-2');
+  assert.equal(creatorPosts.items[0].url, 'https://example.com/post-a');
+  assert.equal(hot.items[0].hotness.formulaVersion, 'creator-hotness-v1');
+  assert.equal(topics.items[0].id, 'topic-c');
+  assert.equal(topic.evidence[0].url, 'https://example.com/post-a');
+  assert.equal(sources.items[0].status, 'unconfigured');
   assert.equal(changes.nextCursor, 4);
   assert.equal(expired.resyncRequired, true);
   assert.equal(expired.latestCursor, 9);

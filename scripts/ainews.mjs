@@ -199,7 +199,7 @@ export class AiNewsClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await this.fetchImpl(`${this.baseUrl}${endpoint}`, {
-        headers: { Accept: 'application/json', 'User-Agent': 'AyaNewsSkill/2.3' },
+        headers: { Accept: 'application/json', 'User-Agent': 'AyaNewsSkill/2.4' },
         signal: controller.signal
       });
       const text = await response.text();
@@ -366,6 +366,105 @@ export class AiNewsClient {
       latestCursor: payload?.meta?.latest_cursor ?? null,
       endpoint
     };
+  }
+
+  async creatorVerticals() {
+    const endpoint = '/api/creators/v1/verticals';
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', items: payload?.data?.items || [], meta: payload.meta || {}, endpoint };
+  }
+
+  async creators(options = {}) {
+    const params = new URLSearchParams({ limit: String(boundedInteger(options.limit, 20, 1, 100)) });
+    for (const key of ['q', 'cursor', 'status', 'vertical', 'platform']) {
+      if (options[key]) params.set(key, String(options[key]));
+    }
+    const endpoint = `/api/creators/v1/creators?${params}`;
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', items: payload?.data?.items || [], nextCursor: payload?.data?.next_cursor || null, meta: payload.meta || {}, endpoint };
+  }
+
+  async creator(id) {
+    const creatorId = String(id || '').trim();
+    if (!creatorId) throw new AiNewsApiError('creator 需要 Creator ID', { code: 'MISSING_CREATOR_ID' });
+    const endpoint = `/api/creators/v1/creators/${encodeURIComponent(creatorId)}`;
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', ...(payload.data || {}), meta: payload.meta || {}, endpoint };
+  }
+
+  async creatorPosts(options = {}) {
+    const params = new URLSearchParams({ limit: String(boundedInteger(options.limit, 20, 1, 100)) });
+    for (const key of ['q', 'cursor', 'vertical', 'platform', 'since']) {
+      if (options[key]) params.set(key, String(options[key]));
+    }
+    if (options.hot !== undefined) params.set('hot', options.hot ? 'true' : 'false');
+    const creator = String(options.creator || '').trim();
+    const base = creator
+      ? `/api/creators/v1/creators/${encodeURIComponent(creator)}/posts`
+      : '/api/creators/v1/posts';
+    const endpoint = `${base}?${params}`;
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', items: payload?.data?.items || [], nextCursor: payload?.data?.next_cursor || null, meta: payload.meta || {}, endpoint };
+  }
+
+  async creatorHot(options = {}) {
+    const type = String(options.type || 'post');
+    if (!['post', 'multi_creator', 'cross_platform'].includes(type)) {
+      throw new AiNewsApiError('type 必须是 post、multi_creator 或 cross_platform', { code: 'INVALID_HOT_TYPE' });
+    }
+    const params = new URLSearchParams({
+      window: this.signalWindow(options.window || '24h'),
+      type,
+      limit: String(boundedInteger(options.limit, 20, 1, 100))
+    });
+    if (options.vertical) params.set('vertical', String(options.vertical));
+    const endpoint = `/api/creators/v1/hot?${params}`;
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', items: payload?.data?.items || [], meta: payload.meta || {}, endpoint };
+  }
+
+  async creatorTopics(options = {}) {
+    const params = new URLSearchParams({
+      window: this.signalWindow(options.window),
+      limit: String(boundedInteger(options.limit, 20, 1, 100))
+    });
+    for (const key of ['q', 'cursor', 'vertical', 'since']) {
+      if (options[key]) params.set(key, String(options[key]));
+    }
+    const endpoint = `/api/creators/v1/topics?${params}`;
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', items: payload?.data?.items || [], nextCursor: payload?.data?.next_cursor || null, meta: payload.meta || {}, endpoint };
+  }
+
+  async creatorTopic(id) {
+    const topicId = String(id || '').trim();
+    if (!topicId) throw new AiNewsApiError('creator-topic 需要 Topic ID', { code: 'MISSING_CREATOR_TOPIC_ID' });
+    const endpoint = `/api/creators/v1/topics/${encodeURIComponent(topicId)}`;
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', ...(payload.data || {}), meta: payload.meta || {}, endpoint };
+  }
+
+  async creatorSources() {
+    const endpoint = '/api/creators/v1/sources';
+    const payload = this.assertResponse(await this.fetchJson(endpoint), [endpoint]);
+    return { apiMode: 'creators-v1', items: payload?.data?.items || [], meta: payload.meta || {}, endpoint };
+  }
+
+  async creatorChanges(options = {}) {
+    const params = new URLSearchParams({
+      since: String(boundedInteger(options.since, 0, 0, Number.MAX_SAFE_INTEGER)),
+      limit: String(boundedInteger(options.limit, 100, 1, 500))
+    });
+    for (const key of ['vertical', 'platform', 'creator']) {
+      if (options[key]) params.set(key, String(options[key]));
+    }
+    const endpoint = `/api/creators/v1/changes?${params}`;
+    const response = await this.fetchJson(endpoint);
+    if (response.status === 410 && response.payload?.error === 'cursor_expired') {
+      return { apiMode: 'creators-v1', resyncRequired: true, resync: response.payload.resync, oldestCursor: response.payload.oldest_cursor, latestCursor: response.payload.latest_cursor, items: [], endpoint };
+    }
+    const payload = this.assertResponse(response, [endpoint]);
+    return { apiMode: 'creators-v1', resyncRequired: false, items: payload?.data?.items || [], nextCursor: payload?.meta?.next_cursor ?? Number(options.since || 0), oldestCursor: payload?.meta?.oldest_cursor ?? null, latestCursor: payload?.meta?.latest_cursor ?? null, endpoint };
   }
 
   async trends() {
@@ -536,7 +635,7 @@ function parseArguments(argumentsList) {
 }
 
 function helpText() {
-  return `AyaNewsSkill CLI\n\nUsage:\n  node scripts/ainews.mjs doctor\n  node scripts/ainews.mjs topics --window 72h --limit 20\n  node scripts/ainews.mjs topic --id TOPIC_ID --window 48h\n  node scripts/ainews.mjs opportunities --window 48h --profile tool-review\n  node scripts/ainews.mjs random-opportunity --window 72h --profile general --exclude PREVIOUS_TOPIC_ID\n  node scripts/ainews.mjs changes --since 0\n  node scripts/ainews.mjs latest --limit 10 [--category AI新闻]\n  node scripts/ainews.mjs search --query "AI Agent" --limit 20\n  node scripts/ainews.mjs trends\n  node scripts/ainews.mjs review\n  node scripts/ainews.mjs source-health\n  node scripts/ainews.mjs vision\n  node scripts/ainews.mjs brief --topic "AI Agent" --topic-id TOPIC_ID --audience "小团队" --goal "评估落地" --format article\n\nProfiles:\n  general | short-video | tool-review | news-commentary | deep-dive\n\nConfiguration:\n  AI_NEWS_API_BASE_URL=${DEFAULT_BASE_URL}\n  --base-url https://your-domain.example\n`;
+  return `AyaNewsSkill CLI\n\nUsage:\n  node scripts/ainews.mjs doctor\n  node scripts/ainews.mjs topics --window 72h --limit 20\n  node scripts/ainews.mjs topic --id TOPIC_ID --window 48h\n  node scripts/ainews.mjs opportunities --window 48h --profile tool-review\n  node scripts/ainews.mjs random-opportunity --window 72h --profile general --exclude PREVIOUS_TOPIC_ID\n  node scripts/ainews.mjs changes --since 0\n  node scripts/ainews.mjs creator-verticals\n  node scripts/ainews.mjs creators --vertical ai-tech --status verified\n  node scripts/ainews.mjs creator --id CREATOR_ID\n  node scripts/ainews.mjs creator-posts --query Agent --vertical ai-tech --cursor OPAQUE_CURSOR\n  node scripts/ainews.mjs creator-hot --window 24h --type cross_platform --vertical ai-tech\n  node scripts/ainews.mjs creator-topics --window 72h --vertical beauty\n  node scripts/ainews.mjs creator-topic --id CREATOR_TOPIC_ID\n  node scripts/ainews.mjs creator-sources\n  node scripts/ainews.mjs creator-changes --since 0\n  node scripts/ainews.mjs latest --limit 10 [--category AI新闻]\n  node scripts/ainews.mjs search --query "AI Agent" --limit 20\n  node scripts/ainews.mjs trends\n  node scripts/ainews.mjs review\n  node scripts/ainews.mjs source-health\n  node scripts/ainews.mjs vision\n  node scripts/ainews.mjs brief --topic "AI Agent" --topic-id TOPIC_ID --audience "小团队" --goal "评估落地" --format article\n\nProfiles:\n  general | short-video | tool-review | news-commentary | deep-dive\n\nConfiguration:\n  AI_NEWS_API_BASE_URL=${DEFAULT_BASE_URL}\n  --base-url https://your-domain.example\n`;
 }
 
 export async function runCli(argumentsList = process.argv.slice(2)) {
@@ -553,6 +652,15 @@ export async function runCli(argumentsList = process.argv.slice(2)) {
   if (command === 'opportunities') return client.opportunities({ window: args.window, limit: args.limit, profile: args.profile });
   if (command === 'random-opportunity') return client.randomOpportunity({ window: args.window, profile: args.profile, exclude: args.exclude });
   if (command === 'changes') return client.changes({ since: args.since, limit: args.limit });
+  if (command === 'creator-verticals') return client.creatorVerticals();
+  if (command === 'creators') return client.creators({ q: args.query || args.q, cursor: args.cursor, status: args.status, vertical: args.vertical, platform: args.platform, limit: args.limit });
+  if (command === 'creator') return client.creator(args.id || args._[1]);
+  if (command === 'creator-posts') return client.creatorPosts({ creator: args.creator, q: args.query || args.q, cursor: args.cursor, vertical: args.vertical, platform: args.platform, since: args.since, hot: args.hot === true || args.hot === 'true', limit: args.limit });
+  if (command === 'creator-hot') return client.creatorHot({ window: args.window, type: args.type, vertical: args.vertical, limit: args.limit });
+  if (command === 'creator-topics') return client.creatorTopics({ window: args.window, q: args.query || args.q, cursor: args.cursor, vertical: args.vertical, since: args.since, limit: args.limit });
+  if (command === 'creator-topic') return client.creatorTopic(args.id || args._[1]);
+  if (command === 'creator-sources') return client.creatorSources();
+  if (command === 'creator-changes') return client.creatorChanges({ since: args.since, limit: args.limit, vertical: args.vertical, platform: args.platform, creator: args.creator });
   if (command === 'trends') return client.trends();
   if (command === 'review') return client.review();
   if (command === 'source-health' || command === 'sources') return client.sourceHealth();

@@ -1,11 +1,11 @@
 ---
 name: aya-news-skill
-description: Use when a user asks for current AI news synthesis, topic research, trend interpretation, self-media scripts or articles, or practical AI advice that must remain verifiable and avoid a single-source filter bubble.
+description: Use when a user asks for current AI news, cross-vertical creator posts, viral-topic tracking, self-media ideas, evidence research, scripts, or articles that must remain verifiable and avoid false whole-network claims.
 ---
 
 # AyaNewsSkill
 
-Turn current AI news into useful content without hiding uncertainty or trapping the reader in one source ecosystem. Prefer helping a specific audience solve a concrete problem over merely summarizing headlines.
+Turn current news and verified public creator posts into useful content without hiding uncertainty or trapping the reader in one source ecosystem. Prefer helping a specific audience solve a concrete problem over merely summarizing headlines.
 
 ## Non-negotiable rules
 
@@ -16,6 +16,7 @@ Turn current AI news into useful content without hiding uncertainty or trapping 
 5. Seek at least 3 distinct sources and 2 evidence types. Include domestic and international sources when both are relevant and available.
 6. If evidence is insufficient or conflicting, say so and narrow the conclusion. Do not fill gaps from memory.
 7. Give low-cost, testable, audience-specific actions. Separate actions from factual conclusions.
+8. Treat `trend-v1`, `opportunity-v2`, and `creator-hotness-v1` as rankings over AyaNews's collected sample, never proof of whole-network popularity.
 
 Read [evidence-rules.md](references/evidence-rules.md) before drafting. Read [api.md](references/api.md) when using the AI News API. Read only the selected format section in [content-formats.md](references/content-formats.md). Read [site-deployment-contract.md](references/site-deployment-contract.md) only when deploying or replacing the bound website API.
 
@@ -32,6 +33,22 @@ The client is permanently bound by default to `https://ainews.xiaotianaya.com`. 
 The installed directory is always `aya-news-skill`, regardless of whether the archive is copied, cloned, or installed into Codex, Claude Code, or a generic Agent Skills directory. Resolve every bundled file relative to this `SKILL.md`; never assume the repository checkout path.
 
 If `doctor` returns `ok: false`, report the attempted endpoints and stop. Do not scrape arbitrary pages, invent news, or switch to an unrelated provider without the user's approval.
+
+## Cross-vertical creator retrieval
+
+Use Creator Intelligence when the request is about what beauty, fashion, AI-tech, or entertainment creators actually published, which post is accelerating, or which subject multiple creators adopted:
+
+```bash
+node "<skill-directory>/scripts/ainews.mjs" creators --vertical ai-tech --status verified
+node "<skill-directory>/scripts/ainews.mjs" creator-posts --query "Agent" --vertical ai-tech
+node "<skill-directory>/scripts/ainews.mjs" creator-hot --window 24h --type cross_platform --vertical ai-tech
+node "<skill-directory>/scripts/ainews.mjs" creator-topics --window 72h --vertical beauty
+node "<skill-directory>/scripts/ainews.mjs" creator-sources
+```
+
+Open every selected post's original HTTPS URL before citing it. `complete` means cursor exhaustion plus reconciliation; `partial` means only a platform-limited history is available; `blocked` means permission/risk control prevents access; `unconfigured` means the operator has not supplied required access. Never turn any of those states into “all posts collected.” Missing metrics remain `null`, not zero.
+
+Use `creator-changes --since N` for committed event polling. Save `nextCursor`; on HTTP 410, reload the response's `resync` collection and resume at `latestCursor`. The Skill is read-only: it may explain signed Webhook, SSE, subscriptions, retries, and dead letters, but it must not register users, create endpoints, or call admin/maintenance routes.
 
 ## Workflow
 
@@ -113,7 +130,7 @@ AyaNews now exposes deterministic event Topics, creator opportunities, Signal so
 node "<skill-directory>/scripts/ainews.mjs" changes --since 0
 ```
 
-Save the returned `nextCursor`. If `resyncRequired` is true after HTTP 410, discard the expired cursor and reload `topics`. AyaNews does not expose MCP, A2A, signed Webhooks, or a push subscription protocol; never invent those endpoints.
+Save the returned `nextCursor`. If `resyncRequired` is true after HTTP 410, discard the expired cursor and reload `topics`. AyaNews exposes authenticated Creator SSE and signed Webhook delivery with a durable outbox, retries and dead letters; those are operator/user workflows, not anonymous Skill commands. MCP and A2A are not live; never invent those endpoints.
 
 ### 4. Separate claim layers
 
@@ -157,4 +174,4 @@ Return, in order:
 3. `证据边界` describing disagreements, missing perspectives, and uncertainty.
 4. `来源` mapping every `[S#]` to publisher, title, date, evidence type, and clickable URL.
 
-For a content brief, also include the selected angle, intended audience, and evidence ledger. For a publish-ready draft, keep the citation markers unless the user explicitly asks for a separate fact-check sheet.
+For a content brief, also include the selected angle, intended audience, format, hook, outline, why-now evidence, uncertainty, disclosure risk, and evidence ledger. For a publish-ready draft, keep the citation markers unless the user explicitly asks for a separate fact-check sheet.

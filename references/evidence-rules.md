@@ -8,6 +8,7 @@
 | Research | Methods, measured results, scientific limitations | Check sample, baseline, peer review, and replication status |
 | Media | Context, interviews, industry reporting | Attribute the report; verify key numbers against primary material |
 | Engineering/community | Implementation experience and edge cases | A case study may not generalize |
+| Creator post | What a verified watched account publicly posted and how returned metrics changed | One viral creator is not multi-creator adoption; a cross-post is not independent adoption |
 
 ## Source selection order
 
@@ -37,6 +38,9 @@ Do not chase numerical balance when a topic legitimately has only one authoritat
 - Never cite a score as proof that an event is objectively popular. Cite the underlying `signals[].url` links for factual claims.
 - Preserve missing metrics as unknown; never rewrite `null` replies, views, stars or shares as zero observed activity.
 - Distinguish source configuration from collection health. An unconfigured L2/L3 source is unavailable evidence, not a failed or silent platform.
+- `creator-hotness-v1` compares stored velocity, creator-relative baseline and same-platform/vertical/age peers. Advertisement, reshare and replay penalties remain visible. It is not a prediction of future reach.
+- `creator-topic-v1` distinguishes one-creator breakout, multiple independent creators and multi-platform spread. Cite the underlying original post URLs, not the topic score.
+- Creator history states are evidence boundaries: `complete` requires cursor exhaustion plus reconciliation; `partial`, `blocked`, `auth_expired`, `rate_limited`, and `unconfigured` must remain explicit.
 
 ## Citation style
 
