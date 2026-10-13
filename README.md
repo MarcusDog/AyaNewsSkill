@@ -227,3 +227,13 @@ cd dist && shasum -a 256 -c SHA256SUMS
 ## 许可证
 
 [MIT](LICENSE)
+
+<!-- ai-positioning:start -->
+## AI / Agent / 大模型定位
+
+- **AI 应用**：这是面向内容研究的 AI 应用组件，把新闻与 Creator Intelligence 转成可核验的结构化输入。
+- **Agent**：以 Agent Skill 形式服务 Codex、Claude Code 等运行时，强制输出 `[S#]` 引用、证据边界和来源映射。
+- **大模型（LLM）**：Skill 本身与大模型（LLM）供应商解耦；模型负责综合表达，脚本负责取数、去重和证据约束。
+
+> 本节用于说明项目与 AI 的真实关系：已实现能力按现状描述，规划能力明确标注为“后续/尚未实现”。
+<!-- ai-positioning:end -->
