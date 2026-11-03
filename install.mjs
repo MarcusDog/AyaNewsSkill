@@ -49,7 +49,9 @@ function parseArguments(argumentsList) {
     const token = argumentsList[index];
     if (token === '--force') parsed.force = true;
     else if (token === '--target' || token === '--target-dir') {
-      parsed[token.slice(2)] = argumentsList[index + 1];
+      const value = argumentsList[index + 1];
+      if (!value || value.startsWith('--')) throw new Error(`参数 ${token} 缺少参数值。`);
+      parsed[token.slice(2)] = value;
       index += 1;
     } else if (token === '--help') parsed.help = true;
     else throw new Error(`未知参数：${token}`);
