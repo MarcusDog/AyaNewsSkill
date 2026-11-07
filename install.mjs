@@ -27,15 +27,18 @@ export async function installSkill(options = {}) {
   const sourceDir = path.resolve(options.sourceDir || repositoryRoot);
   const targetRoot = path.resolve(options.targetRoot || defaultTargetRoot(options.target));
   const installDir = path.join(targetRoot, skillName);
+  // A broken release must not delete an existing installation, even with --force.
+  for (const entry of runtimeEntries) {
+    const source = path.join(sourceDir, entry);
+    if (!(await exists(source))) throw new Error(`发布包缺少必需文件：${entry}`);
+  }
   if (await exists(installDir)) {
     if (!options.force) throw new Error(`目标已经存在：${installDir}。确认替换时使用 --force。`);
     await rm(installDir, { recursive: true, force: true });
   }
   await mkdir(installDir, { recursive: true });
   for (const entry of runtimeEntries) {
-    const source = path.join(sourceDir, entry);
-    if (!(await exists(source))) throw new Error(`发布包缺少必需文件：${entry}`);
-    await cp(source, path.join(installDir, entry), { recursive: true });
+    await cp(path.join(sourceDir, entry), path.join(installDir, entry), { recursive: true });
   }
   return { installDir, targetRoot, skillName };
 }
@@ -46,7 +49,9 @@ function parseArguments(argumentsList) {
     const token = argumentsList[index];
     if (token === '--force') parsed.force = true;
     else if (token === '--target' || token === '--target-dir') {
-      parsed[token.slice(2)] = argumentsList[index + 1];
+      const value = argumentsList[index + 1];
+      if (!value || value.startsWith('--')) throw new Error(`参数 ${token} 缺少参数值。`);
+      parsed[token.slice(2)] = value;
       index += 1;
     } else if (token === '--help') parsed.help = true;
     else throw new Error(`未知参数：${token}`);
