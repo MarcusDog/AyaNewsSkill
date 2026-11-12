@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { realpathSync } from 'node:fs';
-import { access, cp, mkdir, rm } from 'node:fs/promises';
+import { access, cp, lstat, mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,17 +27,44 @@ export async function installSkill(options = {}) {
   const sourceDir = path.resolve(options.sourceDir || repositoryRoot);
   const targetRoot = path.resolve(options.targetRoot || defaultTargetRoot(options.target));
   const installDir = path.join(targetRoot, skillName);
-  // Check the source before --force can remove a working installation.
+  // Check all runtime entries before changing an existing installation.
   for (const entry of runtimeEntries) {
-    if (!(await exists(path.join(sourceDir, entry)))) throw new Error(`发布包缺少必需文件：${entry}`);
+    const source = path.join(sourceDir, entry);
+    const info = await lstat(source).catch(() => null);
+    const valid = info && (entry === 'SKILL.md' ? info.isFile() : info.isDirectory());
+    if (!valid) throw new Error(`发布包缺少必需文件或文件类型不正确：${entry}`);
   }
-  if (await exists(installDir)) {
-    if (!options.force) throw new Error(`目标已经存在：${installDir}。确认替换时使用 --force。`);
-    await rm(installDir, { recursive: true, force: true });
+  if (await exists(installDir) && !options.force) {
+    throw new Error(`目标已经存在：${installDir}。确认替换时使用 --force。`);
   }
-  await mkdir(installDir, { recursive: true });
-  for (const entry of runtimeEntries) {
-    await cp(path.join(sourceDir, entry), path.join(installDir, entry), { recursive: true });
+  await mkdir(targetRoot, { recursive: true });
+  const stageRoot = await mkdtemp(path.join(targetRoot, `.${skillName}-install-`));
+  const stagedSkill = path.join(stageRoot, skillName);
+  let preserveBackup = false;
+  try {
+    await mkdir(stagedSkill);
+    for (const entry of runtimeEntries) {
+      await cp(path.join(sourceDir, entry), path.join(stagedSkill, entry), { recursive: true });
+    }
+    if (await exists(installDir)) {
+      const backup = path.join(stageRoot, 'previous');
+      await rename(installDir, backup);
+      try {
+        await rename(stagedSkill, installDir);
+      } catch (error) {
+        try {
+          await rename(backup, installDir);
+        } catch (restoreError) {
+          preserveBackup = true;
+          throw new AggregateError([error, restoreError], `无法恢复原安装，请从 ${backup} 手动恢复`);
+        }
+        throw error;
+      }
+    } else {
+      await rename(stagedSkill, installDir);
+    }
+  } finally {
+    if (!preserveBackup) await rm(stageRoot, { recursive: true, force: true });
   }
   return { installDir, targetRoot, skillName };
 }
