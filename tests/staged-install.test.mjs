@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -39,4 +39,23 @@ test('force installation stages files and replaces only after a valid source is 
   await installSkill({ sourceDir: replacement, targetRoot, force: true });
   assert.equal(await readFile(path.join(installDir, 'SKILL.md'), 'utf8'), 'replacement');
   assert.deepEqual(await readdir(targetRoot), [skillName]);
+});
+
+test('dangling target symlinks require explicit --force replacement', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aya-install-link-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const sourceDir = await fixture(root, 'source');
+  const targetRoot = path.join(root, 'skills');
+  await mkdir(targetRoot);
+  const installed = path.join(targetRoot, skillName);
+  await symlink(path.join(root, 'missing'), installed);
+
+  await assert.rejects(
+    installSkill({ sourceDir, targetRoot }),
+    /已经存在/
+  );
+  assert.equal((await lstat(installed)).isSymbolicLink(), true);
+  await installSkill({ sourceDir, targetRoot, force: true });
+  assert.equal((await lstat(installed)).isDirectory(), true);
+  assert.equal(await readFile(path.join(installed, 'SKILL.md'), 'utf8'), 'source');
 });

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { realpathSync } from 'node:fs';
-import { access, cp, lstat, mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,12 @@ export const archiveBaseName = 'AyaNewsSkill';
 const repositoryRoot = path.dirname(fileURLToPath(import.meta.url));
 
 async function exists(target) {
-  try { await access(target); return true; } catch { return false; }
+  // access() follows links and reports a dangling symlink as missing.
+  try { await lstat(target); return true; }
+  catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  }
 }
 
 function defaultTargetRoot(target = 'codex') {
