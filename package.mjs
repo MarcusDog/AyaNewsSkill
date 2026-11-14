@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { archiveBaseName, runtimeEntries, skillName } from './install.mjs';
+import { archiveBaseName, runtimeEntries, skillName, validateRuntimeSource } from './install.mjs';
 
 const repositoryRoot = path.dirname(fileURLToPath(import.meta.url));
 const outputDirectory = path.join(repositoryRoot, 'dist');
@@ -27,6 +27,8 @@ async function checksum(filePath) {
 }
 
 async function main() {
+  // Validate before removing previous build artifacts.
+  await validateRuntimeSource(repositoryRoot);
   await rm(outputDirectory, { recursive: true, force: true });
   await mkdir(stagedSkill, { recursive: true });
   for (const entry of runtimeEntries) {

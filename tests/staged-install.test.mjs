@@ -59,3 +59,20 @@ test('dangling target symlinks require explicit --force replacement', async (t) 
   assert.equal((await lstat(installed)).isDirectory(), true);
   assert.equal(await readFile(path.join(installed, 'SKILL.md'), 'utf8'), 'source');
 });
+
+test('nested source symlinks fail validation without changing a forced installation', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aya-install-nested-link-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const original = await fixture(root, 'original');
+  const replacement = await fixture(root, 'replacement');
+  const targetRoot = path.join(root, 'skills');
+  const { installDir } = await installSkill({ sourceDir: original, targetRoot });
+  await mkdir(path.join(replacement, 'assets', 'nested'));
+  await symlink(path.join(root, 'outside'), path.join(replacement, 'assets', 'nested', 'link'));
+  await assert.rejects(
+    installSkill({ sourceDir: replacement, targetRoot, force: true }),
+    /发布包包含符号链接/
+  );
+  assert.equal(await readFile(path.join(installDir, 'SKILL.md'), 'utf8'), 'original');
+  assert.deepEqual(await readdir(targetRoot), [skillName]);
+});

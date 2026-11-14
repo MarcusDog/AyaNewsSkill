@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { realpathSync } from 'node:fs';
-import { cp, lstat, mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, readdir, rename, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,17 +28,36 @@ function defaultTargetRoot(target = 'codex') {
   throw new Error(`未知安装目标：${target}。可选 codex、agents、claude，或使用 --target-dir。`);
 }
 
+export async function validateRuntimeSource(sourceDir) {
+  async function checkDirectory(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const target = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) {
+        throw new Error(`发布包包含符号链接：${path.relative(sourceDir, target)}`);
+      }
+      if (entry.isDirectory()) await checkDirectory(target);
+      else if (!entry.isFile()) {
+        throw new Error(`发布包包含不支持的文件类型：${path.relative(sourceDir, target)}`);
+      }
+    }
+  }
+  for (const entry of runtimeEntries) {
+    const source = path.join(sourceDir, entry);
+    const info = await lstat(source).catch((error) => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
+    const valid = info && (entry === 'SKILL.md' ? info.isFile() : info.isDirectory());
+    if (!valid) throw new Error(`发布包缺少必需文件或文件类型不正确：${entry}`);
+    if (entry !== 'SKILL.md') await checkDirectory(source);
+  }
+}
+
 export async function installSkill(options = {}) {
   const sourceDir = path.resolve(options.sourceDir || repositoryRoot);
   const targetRoot = path.resolve(options.targetRoot || defaultTargetRoot(options.target));
   const installDir = path.join(targetRoot, skillName);
-  // Check all runtime entries before changing an existing installation.
-  for (const entry of runtimeEntries) {
-    const source = path.join(sourceDir, entry);
-    const info = await lstat(source).catch(() => null);
-    const valid = info && (entry === 'SKILL.md' ? info.isFile() : info.isDirectory());
-    if (!valid) throw new Error(`发布包缺少必需文件或文件类型不正确：${entry}`);
-  }
+  await validateRuntimeSource(sourceDir);
   if (await exists(installDir) && !options.force) {
     throw new Error(`目标已经存在：${installDir}。确认替换时使用 --force。`);
   }
