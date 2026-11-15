@@ -200,6 +200,8 @@ export class AiNewsClient {
     try {
       const response = await this.fetchImpl(`${this.baseUrl}${endpoint}`, {
         headers: { Accept: 'application/json', 'User-Agent': 'AyaNewsSkill/2.4' },
+        // Do not allow a validated HTTPS base URL to redirect to unvalidated destinations.
+        redirect: 'error',
         signal: controller.signal
       });
       const text = await response.text();

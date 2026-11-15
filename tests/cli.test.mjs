@@ -48,6 +48,11 @@ const requestUrls = [];
 before(async () => {
   server = http.createServer((request, response) => {
     requestUrls.push(request.url);
+    if (request.url === '/redirect-test') {
+      response.writeHead(302, { Location: '/health' });
+      response.end();
+      return;
+    }
     response.setHeader('content-type', 'application/json');
     if (request.url.startsWith('/api/creators/v1/verticals')) {
       response.end(JSON.stringify({ success: true, data: { items: [{ id: 'ai-tech', name: 'AI 科技', creatorCount: 1, postCount: 3 }] } }));
@@ -346,4 +351,11 @@ test('local brief explicitly reports regional and evidence-type filter-bubble ga
   assert(brief.blindSpots.some((item) => item.code === 'missing_cn'));
   assert(brief.blindSpots.some((item) => item.code === 'missing_official'));
   assert.match(brief.prompt, /当前证据盲区/);
+});
+
+test('client refuses redirects instead of silently following to another endpoint', async () => {
+  const start = requestUrls.length;
+  const client = new AiNewsClient({ baseUrl });
+  await assert.rejects(client.fetchJson('/redirect-test'), (error) => error?.code === 'NETWORK_ERROR');
+  assert.deepEqual(requestUrls.slice(start), ['/redirect-test']);
 });
