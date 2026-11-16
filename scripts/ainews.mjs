@@ -142,9 +142,12 @@ export function buildLocalBrief(inputArticles = [], options = {}) {
   }));
   const citationLines = evidence.map((item) => `[${item.citationId}] ${item.title}｜${item.source}｜${item.publishedAt || '日期未知'}｜${item.url}`);
   const publishers = new Set(evidence.map((item) => item.source));
+  // Two stories from one publisher are not independent source corroboration.
+  const sufficientEvidence = evidence.length >= 2 && publishers.size >= 2;
   const regions = new Set(evidence.map((item) => item.region));
   const evidenceTypes = new Set(evidence.map((item) => item.evidenceType));
   const blindSpots = [
+    publishers.size < 2 && { code: 'missing_independent_publishers', message: '当前证据缺少两个不同发布者，不能视为交叉核验。' },
     !regions.has('cn') && { code: 'missing_cn', message: '当前证据缺少国内来源，不应概括为国内外共同趋势。' },
     !regions.has('global') && { code: 'missing_global', message: '当前证据缺少国际来源，不应概括为全球趋势。' },
     !evidenceTypes.has('official') && { code: 'missing_official', message: '当前证据缺少官方一手材料，产品事实需要继续核验。' },
@@ -160,7 +163,7 @@ export function buildLocalBrief(inputArticles = [], options = {}) {
   ].join('\n\n');
 
   return {
-    status: evidence.length >= 2 ? 'ready' : 'insufficient_evidence',
+    status: sufficientEvidence ? 'ready' : 'insufficient_evidence',
     generatedAt: new Date().toISOString(),
     apiMode: 'legacy-compatible-local-brief',
     request: { topic, audience, goal, format },
@@ -178,7 +181,7 @@ export function buildLocalBrief(inputArticles = [], options = {}) {
     },
     prompt,
     citationPolicy: '逐条引用原文 URL；优先一手材料；来源不足时不生成确定性结论。',
-    notice: evidence.length >= 2
+    notice: sufficientEvidence
       ? `已通过线上兼容接口构建证据包；发布前仍需打开原文复核关键数字和上下文。${blindSpots.length ? '同时保留并披露当前证据盲区。' : ''}`
       : '没有足够来源支持可靠回答，请扩大时间范围、更换关键词或等待新版内容 API 上线。'
   };

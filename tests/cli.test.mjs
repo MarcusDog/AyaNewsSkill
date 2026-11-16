@@ -359,3 +359,22 @@ test('client refuses redirects instead of silently following to another endpoint
   await assert.rejects(client.fetchJson('/redirect-test'), (error) => error?.code === 'NETWORK_ERROR');
   assert.deepEqual(requestUrls.slice(start), ['/redirect-test']);
 });
+
+
+test('local brief does not mark two stories from one publisher as independently sourced', () => {
+  const samePublisher = [
+    { id: 'same-1', title: 'Agent release', source: 'One publisher', url: 'https://example.test/a' },
+    { id: 'same-2', title: 'Agent follow-up', source: 'One publisher', url: 'https://example.test/b' }
+  ];
+  const brief = buildLocalBrief(samePublisher, { topic: 'Agent' });
+  assert.equal(brief.evidence.length, 2);
+  assert.equal(brief.diversity.sources, 1);
+  assert.equal(brief.status, 'insufficient_evidence');
+  assert(brief.blindSpots.some((gap) => gap.code === 'missing_independent_publishers'));
+  assert.match(brief.prompt, /不同发布者/);
+
+  const independent = buildLocalBrief([
+    samePublisher[0], { ...samePublisher[1], source: 'Second publisher' }
+  ], { topic: 'Agent' });
+  assert.equal(independent.status, 'ready');
+});
