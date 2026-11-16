@@ -46,8 +46,10 @@ export function normalizeBaseUrl(input = DEFAULT_BASE_URL) {
 }
 
 function boundedInteger(value, fallback, min, max) {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return fallback;
+  // parseInt silently accepts truncated values such as "2.5" or "8days".
+  const parsed = typeof value === 'number' ? value
+    : typeof value === 'string' && /^[+-]?\d+$/.test(value.trim()) ? Number(value.trim()) : NaN;
+  if (!Number.isSafeInteger(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
 }
 

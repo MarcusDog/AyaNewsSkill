@@ -378,3 +378,15 @@ test('local brief does not mark two stories from one publisher as independently 
   ], { topic: 'Agent' });
   assert.equal(independent.status, 'ready');
 });
+
+
+test('numeric CLI limits reject fractional and mixed-text values instead of silently truncating', async () => {
+  const client = new AiNewsClient({ baseUrl, timeoutMs: '2500ms' });
+  assert.equal(client.timeoutMs, 15000);
+  const invalid = await client.latest({ limit: '2.5' });
+  assert.equal(invalid.items.length, 3);
+  const mixed = await client.latest({ limit: '2items' });
+  assert.equal(mixed.items.length, 3);
+  const valid = await client.latest({ limit: '2' });
+  assert.equal(valid.items.length, 2);
+});
