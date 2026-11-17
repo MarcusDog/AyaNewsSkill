@@ -212,6 +212,9 @@ export class AiNewsClient {
       const text = await response.text();
       let payload = {};
       try { payload = text ? JSON.parse(text) : {}; } catch {
+        // An unimplemented v1 endpoint may return an HTML 404 from a reverse proxy.
+        // Preserve the failure status so callers can try the legacy JSON endpoint.
+        if (!response.ok) return { status: response.status, ok: false, payload: {}, endpoint };
         throw new AiNewsApiError('AI News API 返回了非 JSON 内容', { code: 'INVALID_RESPONSE', status: response.status, endpoint });
       }
       return { status: response.status, ok: response.ok, payload, endpoint };
