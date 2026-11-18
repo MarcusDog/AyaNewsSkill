@@ -390,3 +390,15 @@ test('numeric CLI limits reject fractional and mixed-text values instead of sile
   const valid = await client.latest({ limit: '2' });
   assert.equal(valid.items.length, 2);
 });
+
+test('local brief counts duplicate URLs with different feed IDs as one piece of evidence', () => {
+  const sharedUrl = 'https://publisher.example/agent-release';
+  const brief = buildLocalBrief([
+    { id: 'feed-1', title: 'Agent release', source: 'Official source', url: sharedUrl },
+    { id: 'feed-2', title: 'Agent release copy', source: 'TechCrunch AI', url: sharedUrl }
+  ], { topic: 'Agent' });
+  assert.equal(brief.evidence.length, 1);
+  assert.equal(brief.diversity.sources, 1);
+  assert.equal(brief.status, 'insufficient_evidence');
+  assert.equal(brief.evidence[0].url, sharedUrl);
+});

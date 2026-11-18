@@ -119,18 +119,19 @@ export function buildLocalBrief(inputArticles = [], options = {}) {
     .sort((left, right) => EVIDENCE_PRIORITY.indexOf(left.evidenceType) - EVIDENCE_PRIORITY.indexOf(right.evidenceType)
       || new Date(right.publishedAt || 0) - new Date(left.publishedAt || 0));
   const selected = [];
+  // A single article may appear under different feed IDs or publisher labels.
   const used = new Set();
 
   EVIDENCE_PRIORITY.forEach((type) => {
-    const candidate = candidates.find((article) => article.evidenceType === type && !used.has(article.id || article.url));
+    const candidate = candidates.find((article) => article.evidenceType === type && !used.has(article.url));
     if (candidate && selected.length < limit) {
       selected.push(candidate);
-      used.add(candidate.id || candidate.url);
+      used.add(candidate.url);
     }
   });
   candidates.forEach((candidate) => {
     if (selected.length >= limit) return;
-    const identifier = candidate.id || candidate.url;
+    const identifier = candidate.url;
     if (!used.has(identifier) && selected.filter((item) => item.source === candidate.source).length < 2) {
       selected.push(candidate);
       used.add(identifier);
