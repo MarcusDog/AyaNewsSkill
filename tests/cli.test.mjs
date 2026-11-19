@@ -159,6 +159,7 @@ after(async () => {
 test('base URL accepts HTTPS and local HTTP but rejects unsafe remote HTTP and credentials', () => {
   assert.equal(normalizeBaseUrl('https://ainews.xiaotianaya.com/'), 'https://ainews.xiaotianaya.com');
   assert.equal(normalizeBaseUrl('http://127.0.0.1:3002/'), 'http://127.0.0.1:3002');
+  assert.equal(normalizeBaseUrl('http://[::1]:3002/'), 'http://[::1]:3002');
   assert.throws(() => normalizeBaseUrl('http://example.com'), /HTTPS/);
   assert.throws(() => normalizeBaseUrl('https://user:pass@example.com'), /凭据/);
 });

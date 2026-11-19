@@ -35,7 +35,7 @@ export function normalizeBaseUrl(input = DEFAULT_BASE_URL) {
   if (parsed.username || parsed.password) {
     throw new AiNewsApiError('Base URL 不得包含用户名或凭据', { code: 'UNSAFE_BASE_URL' });
   }
-  const isLocal = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
   if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && isLocal)) {
     throw new AiNewsApiError('远程 AI News API 必须使用 HTTPS', { code: 'UNSAFE_BASE_URL' });
   }
