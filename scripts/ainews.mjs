@@ -79,6 +79,8 @@ function evidenceBoundary(type) {
 }
 
 export function normalizeArticle(article = {}) {
+  // A malformed feed item must not crash the entire article list or local brief.
+  article = article && typeof article === 'object' && !Array.isArray(article) ? article : {};
   return {
     id: article.id || article.url || null,
     title: article.title || '未命名资讯',

@@ -403,3 +403,18 @@ test('local brief counts duplicate URLs with different feed IDs as one piece of 
   assert.equal(brief.status, 'insufficient_evidence');
   assert.equal(brief.evidence[0].url, sharedUrl);
 });
+
+
+test('malformed feed entries do not crash local evidence generation', () => {
+  const brief = buildLocalBrief([
+    null, false, 7, 'invalid', [],
+    { title: 'Agent launch', source: 'Official source', url: 'https://official.example/agent' },
+    { title: 'Agent evaluation', source: 'Research paper', url: 'https://research.example/agent' }
+  ], { topic: 'Agent', limit: 6 });
+  assert.equal(brief.status, 'ready');
+  assert.equal(brief.evidence.length, 2);
+  assert.deepEqual(brief.evidence.map((item) => item.url), [
+    'https://official.example/agent',
+    'https://research.example/agent'
+  ]);
+});
