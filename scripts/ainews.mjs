@@ -109,6 +109,11 @@ function matchesTopic(article, topic) {
   return terms.some((term) => searchable.includes(term));
 }
 
+function publisherKey(article) {
+  // Publisher names are display labels, not stable IDs: normalize trivial formatting.
+  return String(article.source || '未知来源').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 export function buildLocalBrief(inputArticles = [], options = {}) {
   const topic = String(options.topic || '').trim();
   const audience = String(options.audience || '希望解决实际问题的读者').trim();
@@ -134,7 +139,7 @@ export function buildLocalBrief(inputArticles = [], options = {}) {
   candidates.forEach((candidate) => {
     if (selected.length >= limit) return;
     const identifier = candidate.url;
-    if (!used.has(identifier) && selected.filter((item) => item.source === candidate.source).length < 2) {
+    if (!used.has(identifier) && selected.filter((item) => publisherKey(item) === publisherKey(candidate)).length < 2) {
       selected.push(candidate);
       used.add(identifier);
     }
@@ -146,7 +151,7 @@ export function buildLocalBrief(inputArticles = [], options = {}) {
     claimBoundary: evidenceBoundary(article.evidenceType)
   }));
   const citationLines = evidence.map((item) => `[${item.citationId}] ${item.title}｜${item.source}｜${item.publishedAt || '日期未知'}｜${item.url}`);
-  const publishers = new Set(evidence.map((item) => item.source));
+  const publishers = new Set(evidence.map(publisherKey));
   // Two stories from one publisher are not independent source corroboration.
   const sufficientEvidence = evidence.length >= 2 && publishers.size >= 2;
   const regions = new Set(evidence.map((item) => item.region));
